@@ -17,6 +17,8 @@ var isWin = (process.platform === 'win32');
 
 describe('File', function() {
 
+  var link = { path: 'bogus', stat: null, };
+
   describe('isVinyl()', function() {
 
     it('returns true for a Vinyl object', function(done) {
@@ -383,15 +385,21 @@ describe('File', function() {
 
     it('returns false when the contents are a Buffer', function(done) {
       var val = new Buffer('test');
-      var file = new File({ contents: val, stat: fakeStat });
+      var file = new File({ contents: val, symlink: link });
       expect(file.isSymbolic()).toEqual(false);
       done();
     });
 
     it('returns false when the contents are a Stream', function(done) {
       var val = from([]);
-      var file = new File({ contents: val, stat: fakeStat });
+      var file = new File({ contents: val, symlink: link });
       expect(file.isSymbolic()).toEqual(false);
+      done();
+    });
+
+    it('returns true when contents are null & symlink is set', function(done) {
+      var file = new File({ contents: null, symlink: link });
+      expect(file.isSymbolic()).toEqual(true);
       done();
     });
 
@@ -407,7 +415,7 @@ describe('File', function() {
       done();
     });
 
-    it('returns false when stat does not exist', function(done) {
+    it('returns false when neither stat nor symlink are set', function(done) {
       var file = new File({ contents: null });
       expect(file.isSymbolic()).toEqual(false);
       done();
@@ -606,6 +614,7 @@ describe('File', function() {
 
       expect(copy.stat.isFile()).toEqual(true);
       expect(copy.stat.isDirectory()).toEqual(false);
+
       expect(file.stat).toBeAn(fs.Stats);
       expect(copy.stat).toBeAn(fs.Stats);
       done();
@@ -1089,11 +1098,7 @@ describe('File', function() {
       var file = new File({
         base: '/test',
         path: '/test/foo/bar',
-        stat: {
-          isSymbolicLink: function() {
-            return true;
-          },
-        },
+        symlink: link,
       });
 
       expect(file.relative).toEqual(path.normalize('foo/bar'));
@@ -1108,10 +1113,8 @@ describe('File', function() {
           isDirectory: function() {
             return true;
           },
-          isSymbolicLink: function() {
-            return true;
-          },
         },
+        symlink: link,
       });
 
       expect(file.relative).toEqual(path.normalize('foo/bar'));
@@ -1535,11 +1538,7 @@ describe('File', function() {
 
     it('removes the trailing separator upon set when symlink', function(done) {
       var file = new File({
-        stat: {
-          isSymbolicLink: function() {
-            return true;
-          },
-        },
+        symlink: link,
       });
       file.path = '/test/';
 
@@ -1554,10 +1553,8 @@ describe('File', function() {
           isDirectory: function() {
             return true;
           },
-          isSymbolicLink: function() {
-            return true;
-          },
         },
+        symlink: link,
       });
       file.path = '/test/';
 
@@ -1579,49 +1576,105 @@ describe('File', function() {
     it('returns _symlink', function(done) {
       var val = '/test/test.coffee';
       var file = new File();
-      file._symlink = val;
+      var link = {
+        path: val,
+      };
+      file._symlink = link;
 
-      expect(file.symlink).toEqual(val);
+      expect(file.symlink).toEqual(link);
       done();
     });
 
-    it('throws on set with non-string', function(done) {
+    it('throws on set with non-object symlink', function(done) {
       var file = new File();
 
       function invalid() {
-        file.symlink = null;
+        file.symlink = 42;
       }
 
-      expect(invalid).toThrow('symlink should be a string');
+      expect(invalid).toThrow('symlink should be an object');
       done();
     });
 
-    it('sets _symlink', function(done) {
+    it('throws on set with non-string symlink.path', function(done) {
+      var file = new File();
+      var link = {
+        path: null,
+      };
+
+      function invalid() {
+        file.symlink = link;
+      }
+
+      expect(invalid).toThrow('symlink.path should be a string');
+      done();
+    });
+
+    it('throws on set with non-object symlink.stat', function(done) {
+      var file = new File();
+      var link = {
+        path: 'right',
+        stat: 'wrong',
+      };
+
+      function invalid() {
+        file.symlink = link;
+      }
+
+      expect(invalid).toThrow('symlink.stat should be an object');
+      done();
+    });
+
+    it('sets _symlink to null', function(done) {
+      var file = new File();
+      file.symlink = null;
+
+      expect(file.symlink).toEqual(null);
+      done();
+    });
+
+    it('sets _symlink to an object', function(done) {
       var val = '/test/test.coffee';
       var expected = path.normalize(val);
       var file = new File();
-      file.symlink = val;
+      var link = {
+        path: val,
+        stat: null,
+      };
+      file.symlink = link;
 
-      expect(file._symlink).toEqual(expected);
+      expect(file.symlink).toExist();
+      expect(file.symlink.path).toEqual(expected);
+      expect(file.symlink.stat).toBe(null);
       done();
     });
 
-    it('allows relative symlink', function(done) {
+    it('allows relative symlink.path', function(done) {
       var val = 'test.coffee';
       var file = new File();
-      file.symlink = val;
+      var link = {
+        path: val,
+        stat: null,
+      };
+      file.symlink = link;
 
-      expect(file.symlink).toEqual(val);
+      expect(file.symlink).toEqual(link);
       done();
     });
 
-    it('normalizes and removes trailing separator upon set', function(done) {
+    it('normalizes and removes trailing path separator in set', function(done) {
       var val = '/test/foo/../bar/';
       var expected = path.normalize(val.slice(0, -1));
       var file = new File();
-      file.symlink = val;
+      var link = {
+        path: val,
+        stat: null,
+      };
+      file.symlink = link;
 
-      expect(file.symlink).toEqual(expected);
+      expect(file.symlink).toExist();
+      expect(file.symlink.path).toEqual(expected);
+      expect(file.symlink.stat).toBe(null);
       done();
     });
   });

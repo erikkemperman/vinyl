@@ -86,6 +86,10 @@ File.prototype.isSymbolic = function() {
     return false;
   }
 
+  if (this._symlink !== null) {
+    return true;
+  }
+
   if (this.stat && typeof this.stat.isSymbolicLink === 'function') {
     return this.stat.isSymbolicLink();
   }
@@ -316,12 +320,25 @@ Object.defineProperty(File.prototype, 'symlink', {
     return this._symlink;
   },
   set: function(symlink) {
-    // TODO: should this set the mode to symbolic if set?
-    if (typeof symlink !== 'string') {
-      throw new Error('symlink should be a string');
+    if (typeof symlink !== 'object') {
+      throw new Error('symlink should be an object');
+    }
+    if (symlink === null) {
+      this._symlink = null;
+      return;
+    }
+    if (typeof symlink.path !== 'string') {
+      throw new Error('symlink.path should be a string');
+    }
+    if (typeof symlink.stat !== 'object') {
+      throw new Error('symlink.stat should be an object');
     }
 
-    this._symlink = removeTrailingSep(normalize(symlink));
+    this._symlink = clone(symlink);
+    // TODO or just keep shallow ref?
+    // TODO or only copy known fields?
+
+    this._symlink.path = removeTrailingSep(normalize(symlink.path));
   },
 });
 
